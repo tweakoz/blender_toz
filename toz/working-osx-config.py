@@ -91,7 +91,7 @@ else :
         # OSX 10.8 with Xcode 4.4 and higher (no 10.6sdk! )
         MAC_MIN_VERS = '10.6'
         MACOSX_DEPLOYMENT_TARGET = '10.6'
-        MACOSX_SDK='/Developer/SDKs/MacOSX10.7.sdk'
+        MACOSX_SDK='/Developer/SDKs/MacOSX10.8.sdk'
         LCGDIR = '#../lib/darwin-9.x.universal'
         CC = 'gcc'
         CXX = 'g++'
