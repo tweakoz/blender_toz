@@ -599,16 +599,14 @@ static int image_view_ndof_invoke(bContext *C, wmOperator *UNUSED(op), const wmE
 	else {
 		SpaceImage *sima = CTX_wm_space_image(C);
 		ARegion *ar = CTX_wm_region(C);
+		float pan_vec[3];
 
 		wmNDOFMotionData *ndof = (wmNDOFMotionData *) event->customdata;
 
 		float dt = ndof->dt;
-		/* tune these until it feels right */
-		const float zoom_sensitivity = 0.5f; // 50% per second (I think)
-		const float pan_sensitivity = 300.f; // screen pixels per second
 
-		float pan_x = pan_sensitivity * dt * ndof->tvec[0] / sima->zoom;
-		float pan_y = pan_sensitivity * dt * ndof->tvec[1] / sima->zoom;
+		/* tune these until it feels right */
+		const float pan_sensitivity = 300.0f;  /* screen pixels per second */
 
 		/* "mouse zoom" factor = 1 + (dx + dy) / 300
 		 * what about "ndof zoom" factor? should behave like this:
@@ -616,14 +614,15 @@ static int image_view_ndof_invoke(bContext *C, wmOperator *UNUSED(op), const wmE
 		 * move forward -> factor > 1
 		 * move backward -> factor < 1
 		 */
-		float zoom_factor = 1.f + zoom_sensitivity * dt * -ndof->tvec[2];
 
-		if (U.ndof_flag & NDOF_ZOOM_INVERT)
-			zoom_factor = -zoom_factor;
+		WM_event_ndof_pan_get(ndof, pan_vec, true);
 
-		sima_zoom_set_factor(sima, ar, zoom_factor, NULL);
-		sima->xof += pan_x;
-		sima->yof += pan_y;
+		mul_v2_fl(pan_vec, (pan_sensitivity * dt) / sima->zoom);
+		pan_vec[2] *= -dt;
+
+		sima_zoom_set_factor(sima, ar, 1.0f + pan_vec[2], NULL);
+		sima->xof += pan_vec[0];
+		sima->yof += pan_vec[1];
 
 		ED_region_tag_redraw(ar);
 
@@ -657,7 +656,7 @@ static int image_view_all_exec(bContext *C, wmOperator *op)
 	ARegion *ar;
 	float aspx, aspy, zoomx, zoomy, w, h;
 	int width, height;
-	int fit_view = RNA_boolean_get(op->ptr, "fit_view");
+	const bool fit_view = RNA_boolean_get(op->ptr, "fit_view");
 
 	/* retrieve state */
 	sima = CTX_wm_space_image(C);
@@ -1051,7 +1050,7 @@ static int image_open_exec(bContext *C, wmOperator *op)
 	if (RNA_struct_property_is_set(op->ptr, "files") && RNA_struct_property_is_set(op->ptr, "directory")) {	
 		ListBase frames;
 
-		frames.first = frames.last = NULL;
+		BLI_listbase_clear(&frames);
 		image_sequence_get_frames(op->ptr, &frames, path, sizeof(path));
 		frame_seq_len = image_sequence_get_len(&frames, &frame_ofs);
 		BLI_freelistN(&frames);
@@ -2118,7 +2117,7 @@ void IMAGE_OT_invert(wmOperatorType *ot)
 static bool image_pack_test(bContext *C, wmOperator *op)
 {
 	Image *ima = CTX_data_edit_image(C);
-	int as_png = RNA_boolean_get(op->ptr, "as_png");
+	const bool as_png = RNA_boolean_get(op->ptr, "as_png");
 
 	if (!ima)
 		return 0;
@@ -2138,7 +2137,7 @@ static int image_pack_exec(bContext *C, wmOperator *op)
 	struct Main *bmain = CTX_data_main(C);
 	Image *ima = CTX_data_edit_image(C);
 	ImBuf *ibuf = BKE_image_acquire_ibuf(ima, NULL, NULL);
-	int as_png = RNA_boolean_get(op->ptr, "as_png");
+	const bool as_png = RNA_boolean_get(op->ptr, "as_png");
 
 	if (!image_pack_test(C, op))
 		return OPERATOR_CANCELLED;
@@ -2166,7 +2165,7 @@ static int image_pack_invoke(bContext *C, wmOperator *op, const wmEvent *UNUSED(
 	ImBuf *ibuf;
 	uiPopupMenu *pup;
 	uiLayout *layout;
-	int as_png = RNA_boolean_get(op->ptr, "as_png");
+	const bool as_png = RNA_boolean_get(op->ptr, "as_png");
 
 	if (!image_pack_test(C, op))
 		return OPERATOR_CANCELLED;

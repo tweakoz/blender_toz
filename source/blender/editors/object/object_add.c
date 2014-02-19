@@ -1299,7 +1299,7 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 		ob->adt = NULL;
 
 		ob->parent = NULL;
-		ob->constraints.first = ob->constraints.last = NULL;
+		BLI_listbase_clear(&ob->constraints);
 		ob->curve_cache = NULL;
 		ob->transflag &= ~OB_DUPLI;
 		ob->lay = base->lay;
@@ -1311,6 +1311,8 @@ static void make_object_duplilist_real(bContext *C, Scene *scene, Base *base,
 			BLI_ghash_insert(dupli_gh, dob, ob);
 		if (parent_gh)
 			BLI_ghash_insert(parent_gh, BLI_ghashutil_pairalloc(dob->ob, SET_INT_IN_POINTER(dob->persistent_id[0])), ob);
+
+		DAG_id_tag_update(&ob->id, OB_RECALC_DATA);
 	}
 
 	if (use_hierarchy) {
@@ -2092,7 +2094,7 @@ static int duplicate_exec(bContext *C, wmOperator *op)
 {
 	Main *bmain = CTX_data_main(C);
 	Scene *scene = CTX_data_scene(C);
-	int linked = RNA_boolean_get(op->ptr, "linked");
+	const bool linked = RNA_boolean_get(op->ptr, "linked");
 	int dupflag = (linked) ? 0 : U.dupflag;
 
 	BKE_main_id_clear_newpoins(bmain);
@@ -2161,15 +2163,18 @@ static int add_named_exec(bContext *C, wmOperator *op)
 	Scene *scene = CTX_data_scene(C);
 	Base *basen, *base;
 	Object *ob;
-	int linked = RNA_boolean_get(op->ptr, "linked");
+	const bool linked = RNA_boolean_get(op->ptr, "linked");
 	int dupflag = (linked) ? 0 : U.dupflag;
 	char name[MAX_ID_NAME - 2];
 
 	/* find object, create fake base */
 	RNA_string_get(op->ptr, "name", name);
 	ob = (Object *)BKE_libblock_find_name(ID_OB, name);
-	if (ob == NULL)
+
+	if (ob == NULL) {
+		BKE_report(op->reports, RPT_ERROR, "Object not found");
 		return OPERATOR_CANCELLED;
+	}
 
 	base = MEM_callocN(sizeof(Base), "duplibase");
 	base->object = ob;
@@ -2183,6 +2188,7 @@ static int add_named_exec(bContext *C, wmOperator *op)
 
 	if (basen == NULL) {
 		MEM_freeN(base);
+		BKE_report(op->reports, RPT_ERROR, "Object could not be duplicated");
 		return OPERATOR_CANCELLED;
 	}
 

@@ -745,19 +745,17 @@ void filelist_setfilter_types(struct FileList *filelist, const char *filter_glob
 }
 
 /* would recognize .blend as well */
-static int file_is_blend_backup(const char *str)
+static bool file_is_blend_backup(const char *str)
 {
-	short a, b;
-	int retval = 0;
-	
-	a = strlen(str);
-	b = 7;
-	
+	const size_t a = strlen(str);
+	size_t b = 7;
+	bool retval = 0;
+
 	if (a == 0 || b >= a) {
 		/* pass */
 	}
 	else {
-		char *loc;
+		const char *loc;
 		
 		if (a > b + 1)
 			b++;
@@ -990,7 +988,7 @@ void filelist_select(struct FileList *filelist, FileSelection *sel, FileSelType 
 	}
 }
 
-int filelist_is_selected(struct FileList *filelist, int index, FileCheckType check)
+bool filelist_is_selected(struct FileList *filelist, int index, FileCheckType check)
 {
 	struct direntry *file = filelist_file(filelist, index);
 	if (!file) {
@@ -1003,7 +1001,7 @@ int filelist_is_selected(struct FileList *filelist, int index, FileCheckType che
 			return S_ISREG(file->type) && (file->selflag & SELECTED_FILE);
 		case CHECK_ALL:
 		default:
-			return (file->selflag & SELECTED_FILE);
+			return (file->selflag & SELECTED_FILE) != 0;
 	}
 }
 
@@ -1028,14 +1026,14 @@ void filelist_sort(struct FileList *filelist, short sort)
 }
 
 
-int filelist_islibrary(struct FileList *filelist, char *dir, char *group)
+bool filelist_islibrary(struct FileList *filelist, char *dir, char *group)
 {
 	return BLO_is_a_library(filelist->dir, dir, group);
 }
 
 static int groupname_to_code(const char *group)
 {
-	char buf[32];
+	char buf[BLO_GROUP_MAX];
 	char *lslash;
 	
 	BLI_strncpy(buf, group, sizeof(buf));
@@ -1043,7 +1041,7 @@ static int groupname_to_code(const char *group)
 	if (lslash)
 		lslash[0] = '\0';
 
-	return BKE_idcode_from_name(buf);
+	return buf[0] ? BKE_idcode_from_name(buf) : 0;
 }
  
 void filelist_from_library(struct FileList *filelist)

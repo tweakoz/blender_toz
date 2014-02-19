@@ -206,7 +206,7 @@ Curve *BKE_curve_copy(Curve *cu)
 	int a;
 
 	cun = BKE_libblock_copy(&cu->id);
-	cun->nurb.first = cun->nurb.last = NULL;
+	BLI_listbase_clear(&cun->nurb);
 	BKE_nurbList_duplicate(&(cun->nurb), &(cu->nurb));
 
 	cun->mat = MEM_dupallocN(cu->mat);
@@ -534,7 +534,7 @@ void BKE_nurbList_free(ListBase *lb)
 		BKE_nurb_free(nu);
 		nu = next;
 	}
-	lb->first = lb->last = NULL;
+	BLI_listbase_clear(lb);
 }
 
 Nurb *BKE_nurb_duplicate(Nurb *nu)
@@ -1628,7 +1628,7 @@ void BKE_curve_bevel_make(Scene *scene, Object *ob, ListBase *disp, int forRende
 	int nr, a;
 
 	cu = ob->data;
-	disp->first = disp->last = NULL;
+	BLI_listbase_clear(disp);
 
 	/* if a font object is being edited, then do nothing */
 // XXX	if ( ob == obedit && ob->type == OB_FONT ) return;
@@ -1647,9 +1647,12 @@ void BKE_curve_bevel_make(Scene *scene, Object *ob, ListBase *disp, int forRende
 				BKE_displist_make_curveTypes_forRender(scene, cu->bevobj, &bevdisp, NULL, 0, renderResolution);
 				dl = bevdisp.first;
 			}
+			else if (cu->bevobj->curve_cache) {
+				dl = cu->bevobj->curve_cache->disp.first;
+			}
 			else {
 				BLI_assert(cu->bevobj->curve_cache != NULL);
-				dl = cu->bevobj->curve_cache->disp.first;
+				dl = NULL;
 			}
 
 			while (dl) {
@@ -2524,7 +2527,7 @@ void BKE_curve_bevelList_make(Object *ob, ListBase *nurbs, bool for_render)
 	struct BevelSort *sortdata, *sd, *sd1;
 	int a, b, nr, poly, resolu = 0, len = 0;
 	int do_tilt, do_radius, do_weight;
-	int is_editmode = 0;
+	bool is_editmode = false;
 	ListBase *bev;
 
 	/* this function needs an object, because of tflag and upflag */
@@ -3519,6 +3522,9 @@ void BKE_nurb_direction_switch(Nurb *nu)
 				bezt1->alfa = -bezt1->alfa;
 				bezt2->alfa = -bezt2->alfa;
 			}
+			else {
+				bezt1->alfa = -bezt1->alfa;
+			}
 			a--;
 			bezt1++;
 			bezt2--;
@@ -3536,6 +3542,12 @@ void BKE_nurb_direction_switch(Nurb *nu)
 			bp2->alfa = -bp2->alfa;
 			bp1++;
 			bp2--;
+		}
+		/* If there're odd number of points no need to touch coord of middle one,
+		 * but still need to change it's tilt.
+		 */
+		if (nu->pntsu & 1) {
+			bp1->alfa = -bp1->alfa;
 		}
 		if (nu->type == CU_NURBS) {
 			/* no knots for too short paths */
@@ -4039,7 +4051,7 @@ bool BKE_curve_minmax(Curve *cu, bool use_radius, float min[3], float max[3])
 	for (nu = nurb_lb->first; nu; nu = nu->next)
 		BKE_nurb_minmax(nu, use_radius, min, max);
 
-	return (nurb_lb->first != NULL);
+	return (BLI_listbase_is_empty(nurb_lb) == false);
 }
 
 bool BKE_curve_center_median(Curve *cu, float cent[3])
@@ -4092,7 +4104,7 @@ bool BKE_curve_center_bounds(Curve *cu, float cent[3])
 	return false;
 }
 
-void BKE_curve_translate(Curve *cu, float offset[3], int do_keys)
+void BKE_curve_translate(Curve *cu, float offset[3], const bool do_keys)
 {
 	ListBase *nurb_lb = BKE_curve_nurbs_get(cu);
 	Nurb *nu;

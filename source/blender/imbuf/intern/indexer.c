@@ -34,7 +34,6 @@
 #include "BLI_endian_switch.h"
 #include "BLI_path_util.h"
 #include "BLI_string.h"
-#include "BLI_path_util.h"
 #include "BLI_fileops.h"
 #include "BLI_math_base.h"
 
@@ -910,7 +909,7 @@ static int index_rebuild_ffmpeg(FFmpegIndexBuilderContext *context,
 
 	stream_size = avio_size(context->iFormatCtx->pb);
 
-	context->frame_rate = av_q2d(context->iStream->avg_frame_rate);
+	context->frame_rate = av_q2d(av_get_r_frame_rate_compat(context->iStream));
 	context->pts_time_base = av_q2d(context->iStream->time_base);
 
 	while (av_read_frame(context->iFormatCtx, &next_packet) >= 0) {

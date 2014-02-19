@@ -259,7 +259,7 @@ static void compo_startjob(void *cjv, short *stop, short *do_update, float *prog
 	// XXX BIF_store_spare();
 	
 	/* 1 is do_previews */
-	ntreeCompositExecTree(ntree, &cj->scene->r, FALSE, TRUE, &scene->view_settings, &scene->display_settings);
+	ntreeCompositExecTree(cj->scene, ntree, &cj->scene->r, FALSE, TRUE, &scene->view_settings, &scene->display_settings);
 
 	ntree->test_break = NULL;
 	ntree->stats_draw = NULL;
@@ -364,17 +364,17 @@ void ED_node_set_tree_type(SpaceNode *snode, bNodeTreeType *typeinfo)
 		snode->tree_idname[0] = '\0';
 }
 
-int ED_node_is_compositor(struct SpaceNode *snode)
+bool ED_node_is_compositor(struct SpaceNode *snode)
 {
 	return STREQ(snode->tree_idname, ntreeType_Composite->idname);
 }
 
-int ED_node_is_shader(struct SpaceNode *snode)
+bool ED_node_is_shader(struct SpaceNode *snode)
 {
 	return STREQ(snode->tree_idname, ntreeType_Shader->idname);
 }
 
-int ED_node_is_texture(struct SpaceNode *snode)
+bool ED_node_is_texture(struct SpaceNode *snode)
 {
 	return STREQ(snode->tree_idname, ntreeType_Texture->idname);
 }
@@ -1130,7 +1130,7 @@ static int node_duplicate_exec(bContext *C, wmOperator *op)
 	bNodeTree *ntree = snode->edittree;
 	bNode *node, *newnode, *lastnode;
 	bNodeLink *link, *newlink, *lastlink;
-	int keep_inputs = RNA_boolean_get(op->ptr, "keep_inputs");
+	const bool keep_inputs = RNA_boolean_get(op->ptr, "keep_inputs");
 	
 	ED_preview_kill_jobs(C);
 	
@@ -2002,7 +2002,7 @@ static int node_clipboard_paste_exec(bContext *C, wmOperator *op)
 	clipboard_nodes_lb = BKE_node_clipboard_get_nodes();
 	clipboard_links_lb = BKE_node_clipboard_get_links();
 
-	if (clipboard_nodes_lb->first == NULL) {
+	if (BLI_listbase_is_empty(clipboard_nodes_lb)) {
 		BKE_report(op->reports, RPT_ERROR, "Clipboard is empty");
 		return OPERATOR_CANCELLED;
 	}

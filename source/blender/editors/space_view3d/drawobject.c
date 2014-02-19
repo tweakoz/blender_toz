@@ -97,6 +97,19 @@
 
 #include "view3d_intern.h"  /* bad level include */
 
+/* Workaround for sequencer scene render mode.
+ *
+ * Strips doesn't use DAG to update objects or so, which
+ * might lead to situations when object is drawing without
+ * curve cache ready.
+ *
+ * Ideally we don't want to evaluate objects from drawing,
+ * but it'll require some major sequencer re-design. So
+ * for now just fallback to legacy behaior with calling
+ * display ist creating from draw().
+ */
+#define SEQUENCER_DAG_WORKAROUND
+
 typedef enum eWireDrawMode {
 	OBDRAW_WIRE_OFF = 0,
 	OBDRAW_WIRE_ON = 1,
@@ -180,7 +193,7 @@ static void ob_wire_color_blend_theme_id(const unsigned char ob_wire_col[4], con
 }
 
 /* this condition has been made more complex since editmode can draw textures */
-static bool check_object_draw_texture(Scene *scene, View3D *v3d, const char drawtype)
+bool check_object_draw_texture(Scene *scene, View3D *v3d, const char drawtype)
 {
 	/* texture and material draw modes */
 	if (ELEM(v3d->drawtype, OB_TEXTURE, OB_MATERIAL) && drawtype > OB_SOLID) {
@@ -748,7 +761,7 @@ typedef struct ViewCachedString {
 void view3d_cached_text_draw_begin(void)
 {
 	ListBase *strings = &CachedText[CachedTextLevel];
-	strings->first = strings->last = NULL;
+	BLI_listbase_clear(strings);
 	CachedTextLevel++;
 }
 
@@ -1891,6 +1904,27 @@ static void drawlattice__point(Lattice *lt, DispList *dl, int u, int v, int w, i
 		glVertex3fv(lt->def[index].vec);
 	}
 }
+
+#ifdef SEQUENCER_DAG_WORKAROUND
+static void ensure_curve_cache(Scene *scene, Object *object)
+{
+	if (object->curve_cache == NULL) {
+		switch (object->type) {
+			case OB_CURVE:
+			case OB_SURF:
+			case OB_FONT:
+				BKE_displist_make_curveTypes(scene, object, FALSE);
+				break;
+			case OB_MBALL:
+				BKE_displist_make_mball(G.main->eval_ctx, scene, object);
+				break;
+			case OB_LATTICE:
+				BKE_lattice_modifiers_calc(scene, object);
+				break;
+		}
+	}
+}
+#endif
 
 /* lattice color is hardcoded, now also shows weightgroup values in edit mode */
 static void drawlattice(View3D *v3d, Object *ob)
@@ -3373,7 +3407,7 @@ static void draw_mesh_fancy(Scene *scene, ARegion *ar, View3D *v3d, RegionView3D
 	Object *ob = BKE_object_lod_meshob_get(base->object, scene);
 	Mesh *me = ob->data;
 	Material *ma = give_current_material(ob, 1);
-	const short hasHaloMat = (ma && (ma->material_type == MA_TYPE_HALO) && !BKE_scene_use_new_shading_nodes(scene));
+	const bool hasHaloMat = (ma && (ma->material_type == MA_TYPE_HALO) && !BKE_scene_use_new_shading_nodes(scene));
 	eWireDrawMode draw_wire = OBDRAW_WIRE_OFF;
 	int /* totvert,*/ totedge, totface;
 	DerivedMesh *dm = mesh_get_derived_final(scene, ob, scene->customdata_mask);
@@ -4068,7 +4102,7 @@ static bool drawDispList_nobackface(Scene *scene, View3D *v3d, RegionView3D *rv3
 
 			if (BKE_mball_is_basis(ob)) {
 				lb = &ob->curve_cache->disp;
-				if (lb->first == NULL) {
+				if (BLI_listbase_is_empty(lb)) {
 					return true;
 				}
 
@@ -4106,6 +4140,10 @@ static bool drawDispList(Scene *scene, View3D *v3d, RegionView3D *rv3d, Base *ba
 		glEnable(GL_CULL_FACE);
 		glCullFace(GL_BACK);
 	}
+
+#ifdef SEQUENCER_DAG_WORKAROUND
+	ensure_curve_cache(scene, base->object);
+#endif
 
 	retval = drawDispList_nobackface(scene, v3d, rv3d, base, dt, dflag, ob_wire_col);
 
@@ -6370,6 +6408,10 @@ static void drawObjectSelect(Scene *scene, View3D *v3d, ARegion *ar, Base *base,
 		DerivedMesh *dm = ob->derivedFinal;
 		bool has_faces = false;
 
+#ifdef SEQUENCER_DAG_WORKAROUND
+		ensure_curve_cache(scene, ob);
+#endif
+
 		if (dm) {
 			has_faces = dm->getNumTessFaces(dm) > 0;
 		}
@@ -6584,7 +6626,7 @@ static void draw_object_matcap_check(View3D *v3d, Object *ob)
 
 		v3d->defmaterial = MEM_mallocN(sizeof(Material), "matcap material");
 		*(v3d->defmaterial) = defmaterial;
-		v3d->defmaterial->gpumaterial.first = v3d->defmaterial->gpumaterial.last = NULL;
+		BLI_listbase_clear(&v3d->defmaterial->gpumaterial);
 		v3d->defmaterial->preview = NULL;
 	}
 	/* first time users */
@@ -6930,6 +6972,9 @@ void draw_object(Scene *scene, ARegion *ar, View3D *v3d, Base *base, const short
 				}
 				else if (dt == OB_BOUNDBOX) {
 					if ((render_override && v3d->drawtype >= OB_WIRE) == 0) {
+#ifdef SEQUENCER_DAG_WORKAROUND
+						ensure_curve_cache(scene, base->object);
+#endif
 						draw_bounding_volume(ob, ob->boundtype);
 					}
 				}
@@ -6948,6 +6993,9 @@ void draw_object(Scene *scene, ARegion *ar, View3D *v3d, Base *base, const short
 				}
 				else if (dt == OB_BOUNDBOX) {
 					if ((render_override && (v3d->drawtype >= OB_WIRE)) == 0) {
+#ifdef SEQUENCER_DAG_WORKAROUND
+						ensure_curve_cache(scene, base->object);
+#endif
 						draw_bounding_volume(ob, ob->boundtype);
 					}
 				}
@@ -6966,6 +7014,9 @@ void draw_object(Scene *scene, ARegion *ar, View3D *v3d, Base *base, const short
 					drawmball(scene, v3d, rv3d, base, dt, dflag, ob_wire_col);
 				else if (dt == OB_BOUNDBOX) {
 					if ((render_override && (v3d->drawtype >= OB_WIRE)) == 0) {
+#ifdef SEQUENCER_DAG_WORKAROUND
+						ensure_curve_cache(scene, base->object);
+#endif
 						draw_bounding_volume(ob, ob->boundtype);
 					}
 				}
@@ -7008,6 +7059,9 @@ void draw_object(Scene *scene, ARegion *ar, View3D *v3d, Base *base, const short
 						draw_bounding_volume(ob, ob->boundtype);
 					}
 					else {
+#ifdef SEQUENCER_DAG_WORKAROUND
+						ensure_curve_cache(scene, ob);
+#endif
 						drawlattice(v3d, ob);
 					}
 				}
@@ -7336,7 +7390,7 @@ void draw_object(Scene *scene, ARegion *ar, View3D *v3d, Base *base, const short
 			}
 			else if ((dflag & DRAW_CONSTCOLOR) == 0) {
 				/* we don't draw centers for duplicators and sets */
-				if (U.obcenter_dia > 0) {
+				if (U.obcenter_dia > 0 && !(G.f & G_RENDER_OGL)) {
 					/* check > 0 otherwise grease pencil can draw into the circle select which is annoying. */
 					drawcentercircle(v3d, rv3d, ob->obmat[3], do_draw_center, ob->id.lib || ob->id.us > 1);
 				}

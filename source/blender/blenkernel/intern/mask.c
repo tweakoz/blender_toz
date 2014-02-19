@@ -150,6 +150,7 @@ MaskLayer *BKE_mask_layer_new(Mask *mask, const char *name)
 
 	masklay->blend = MASK_BLEND_MERGE_ADD;
 	masklay->alpha = 1.0f;
+	masklay->flag = MASK_LAYERFLAG_FILL_DISCRETE | MASK_LAYERFLAG_FILL_OVERLAP;
 
 	return masklay;
 }
@@ -434,7 +435,7 @@ float BKE_mask_spline_project_co(MaskSpline *spline, MaskSplinePoint *point,
 
 /* point */
 
-int BKE_mask_point_has_handle(MaskSplinePoint *point)
+bool BKE_mask_point_has_handle(MaskSplinePoint *point)
 {
 	BezTriple *bezt = &point->bezt;
 
@@ -671,7 +672,7 @@ void BKE_mask_point_add_uw(MaskSplinePoint *point, float u, float w)
 	BKE_mask_point_sort_uw(point, &point->uw[point->tot_uw - 1]);
 }
 
-void BKE_mask_point_select_set(MaskSplinePoint *point, const short do_select)
+void BKE_mask_point_select_set(MaskSplinePoint *point, const bool do_select)
 {
 	int i;
 
@@ -692,7 +693,7 @@ void BKE_mask_point_select_set(MaskSplinePoint *point, const short do_select)
 	}
 }
 
-void BKE_mask_point_select_set_handle(MaskSplinePoint *point, const short do_select)
+void BKE_mask_point_select_set_handle(MaskSplinePoint *point, const bool do_select)
 {
 	if (do_select) {
 		MASKPOINT_SEL_HANDLE(point);
@@ -742,8 +743,7 @@ Mask *BKE_mask_copy_nolib(Mask *mask)
 	/*take care here! - we may want to copy anim data  */
 	mask_new->adt = NULL;
 
-	mask_new->masklayers.first = NULL;
-	mask_new->masklayers.last = NULL;
+	BLI_listbase_clear(&mask_new->masklayers);
 
 	BKE_mask_layer_copy_list(&mask_new->masklayers, &mask->masklayers);
 
@@ -762,8 +762,7 @@ Mask *BKE_mask_copy(Mask *mask)
 
 	mask_new = BKE_libblock_copy(&mask->id);
 
-	mask_new->masklayers.first = NULL;
-	mask_new->masklayers.last = NULL;
+	BLI_listbase_clear(&mask_new->masklayers);
 
 	BKE_mask_layer_copy_list(&mask_new->masklayers, &mask->masklayers);
 
@@ -1298,7 +1297,7 @@ void BKE_mask_calc_handle_adjacent_interp(MaskSpline *spline, MaskSplinePoint *p
  * Useful for giving sane defaults.
  */
 void BKE_mask_calc_handle_point_auto(MaskSpline *spline, MaskSplinePoint *point,
-                                     const short do_recalc_length)
+                                     const bool do_recalc_length)
 {
 	MaskSplinePoint *point_prev, *point_next;
 	const char h_back[2] = {point->bezt.h1, point->bezt.h2};
@@ -1947,7 +1946,7 @@ int BKE_mask_get_duration(Mask *mask)
 static void mask_clipboard_free_ex(bool final_free)
 {
 	BKE_mask_spline_free_list(&mask_clipboard.splines);
-	mask_clipboard.splines.first = mask_clipboard.splines.last = NULL;
+	BLI_listbase_clear(&mask_clipboard.splines);
 	if (mask_clipboard.id_hash) {
 		if (final_free) {
 			BLI_ghash_free(mask_clipboard.id_hash, NULL, MEM_freeN);
@@ -2005,7 +2004,7 @@ void BKE_mask_clipboard_copy_from_layer(MaskLayer *mask_layer)
 /* Check clipboard is empty. */
 bool BKE_mask_clipboard_is_empty(void)
 {
-	return mask_clipboard.splines.first == NULL;
+	return BLI_listbase_is_empty(&mask_clipboard.splines);
 }
 
 /* Paste the contents of clipboard to given mask layer */

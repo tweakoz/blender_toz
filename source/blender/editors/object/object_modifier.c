@@ -313,7 +313,7 @@ static bool object_modifier_remove(Main *bmain, Object *ob, ModifierData *md,
 	}
 
 	if (ELEM(md->type, eModifierType_Softbody, eModifierType_Cloth) &&
-	    ob->particlesystem.first == NULL)
+	    BLI_listbase_is_empty(&ob->particlesystem))
 	{
 		ob->mode &= ~OB_MODE_PARTICLE_EDIT;
 	}
@@ -1289,7 +1289,7 @@ static int multires_external_save_exec(bContext *C, wmOperator *op)
 	Object *ob = ED_object_active_context(C);
 	Mesh *me = (ob) ? ob->data : op->customdata;
 	char path[FILE_MAX];
-	int relative = RNA_boolean_get(op->ptr, "relative_path");
+	const bool relative = RNA_boolean_get(op->ptr, "relative_path");
 
 	if (!me)
 		return OPERATOR_CANCELLED;
@@ -2097,7 +2097,7 @@ static int ocean_bake_exec(bContext *C, wmOperator *op)
 	OceanCache *och;
 	struct Ocean *ocean;
 	int f, cfra, i = 0;
-	int free = RNA_boolean_get(op->ptr, "free");
+	const bool free = RNA_boolean_get(op->ptr, "free");
 	
 	wmJob *wm_job;
 	OceanBakeJob *oj;

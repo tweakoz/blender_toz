@@ -2073,8 +2073,8 @@ static int keyframe_jump_exec(bContext *C, wmOperator *op)
 	DLRBT_Tree keys;
 	ActKeyColumn *ak;
 	float cfra;
-	short next = RNA_boolean_get(op->ptr, "next");
-	short done = FALSE;
+	const bool next = RNA_boolean_get(op->ptr, "next");
+	bool done = false;
 	
 	/* sanity checks */
 	if (scene == NULL)
@@ -2164,7 +2164,7 @@ static int marker_jump_exec(bContext *C, wmOperator *op)
 	Scene *scene = CTX_data_scene(C);
 	TimeMarker *marker;
 	int closest = CFRA;
-	short next = RNA_boolean_get(op->ptr, "next");
+	const bool next = RNA_boolean_get(op->ptr, "next");
 	bool found = false;
 
 	/* find matching marker in the right direction */
@@ -2217,7 +2217,7 @@ static void SCREEN_OT_marker_jump(wmOperatorType *ot)
 
 /* ************** switch screen operator ***************************** */
 
-static int screen_set_is_ok(bScreen *screen, bScreen *screen_prev)
+static bool screen_set_is_ok(bScreen *screen, bScreen *screen_prev)
 {
 	return ((screen->winid == 0)    &&
 	        (screen->full == 0)     &&
@@ -2516,7 +2516,7 @@ static int area_join_modal(bContext *C, wmOperator *op, const wmEvent *event)
 			if (sa) {
 				if (jd->sa1 != sa) {
 					dir = area_getorientation(jd->sa1, sa);
-					if (dir >= 0) {
+					if (dir != -1) {
 						if (jd->sa2) jd->sa2->flag &= ~AREA_FLAG_DRAWJOINTO;
 						jd->sa2 = sa;
 						jd->sa2->flag |= AREA_FLAG_DRAWJOINTO;
@@ -2527,7 +2527,7 @@ static int area_join_modal(bContext *C, wmOperator *op, const wmEvent *event)
 						 * in this case we can swap areas.
 						 */
 						dir = area_getorientation(sa, jd->sa2);
-						if (dir >= 0) {
+						if (dir != -1) {
 							if (jd->sa1) jd->sa1->flag &= ~AREA_FLAG_DRAWJOINFROM;
 							if (jd->sa2) jd->sa2->flag &= ~AREA_FLAG_DRAWJOINTO;
 							jd->sa1 = jd->sa2;
@@ -2553,13 +2553,13 @@ static int area_join_modal(bContext *C, wmOperator *op, const wmEvent *event)
 						if (jd->sa1) jd->sa1->flag |= AREA_FLAG_DRAWJOINFROM;
 						if (jd->sa2) jd->sa2->flag |= AREA_FLAG_DRAWJOINTO;
 						dir = area_getorientation(jd->sa1, jd->sa2);
-						if (dir < 0) {
+						if (dir == -1) {
 							printf("oops, didn't expect that!\n");
 						}
 					}
 					else {
 						dir = area_getorientation(jd->sa1, sa);
-						if (dir >= 0) {
+						if (dir != -1) {
 							if (jd->sa2) jd->sa2->flag &= ~AREA_FLAG_DRAWJOINTO;
 							jd->sa2 = sa;
 							jd->sa2->flag |= AREA_FLAG_DRAWJOINTO;
@@ -2753,7 +2753,8 @@ static int repeat_history_invoke(bContext *C, wmOperator *op, const wmEvent *UNU
 	layout = uiPupMenuLayout(pup);
 	
 	for (i = items - 1, lastop = wm->operators.last; lastop; lastop = lastop->prev, i--)
-		uiItemIntO(layout, RNA_struct_ui_name(lastop->type->srna), ICON_NONE, op->type->idname, "index", i);
+		if (WM_operator_repeat_check(C, lastop))
+			uiItemIntO(layout, RNA_struct_ui_name(lastop->type->srna), ICON_NONE, op->type->idname, "index", i);
 	
 	uiPupMenuEnd(C, pup);
 	
@@ -2895,6 +2896,7 @@ static int region_quadview_exec(bContext *C, wmOperator *op)
 		/* lock views and set them */
 		if (sa->spacetype == SPACE_VIEW3D) {
 			View3D *v3d = sa->spacedata.first;
+			int index_qsplit = 0;
 
 			/* run ED_view3d_lock() so the correct 'rv3d->viewquat' is set,
 			 * otherwise when restoring rv3d->localvd the 'viewquat' won't
@@ -2906,9 +2908,9 @@ static int region_quadview_exec(bContext *C, wmOperator *op)
 			const char viewlock = (rv3d->viewlock_quad & RV3D_VIEWLOCK_INIT) ?
 			                      (rv3d->viewlock_quad & ~RV3D_VIEWLOCK_INIT) : RV3D_LOCKED;
 
-			region_quadview_init_rv3d(sa, ar,              viewlock, RV3D_VIEW_FRONT, RV3D_ORTHO);
-			region_quadview_init_rv3d(sa, (ar = ar->next), viewlock, RV3D_VIEW_TOP,   RV3D_ORTHO);
-			region_quadview_init_rv3d(sa, (ar = ar->next), viewlock, RV3D_VIEW_RIGHT, RV3D_ORTHO);
+			region_quadview_init_rv3d(sa, ar,              viewlock, ED_view3d_lock_view_from_index(index_qsplit++), RV3D_ORTHO);
+			region_quadview_init_rv3d(sa, (ar = ar->next), viewlock, ED_view3d_lock_view_from_index(index_qsplit++), RV3D_ORTHO);
+			region_quadview_init_rv3d(sa, (ar = ar->next), viewlock, ED_view3d_lock_view_from_index(index_qsplit++), RV3D_ORTHO);
 			if (v3d->camera) region_quadview_init_rv3d(sa, (ar = ar->next), 0, RV3D_VIEW_CAMERA,     RV3D_CAMOB);
 			else             region_quadview_init_rv3d(sa, (ar = ar->next), 0, RV3D_VIEW_PERSPORTHO, RV3D_PERSP);
 

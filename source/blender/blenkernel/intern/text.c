@@ -188,7 +188,7 @@ Text *BKE_text_add(Main *bmain, const char *name)
 	if ((U.flag & USER_TXT_TABSTOSPACES_DISABLE) == 0)
 		ta->flags |= TXT_TABSTOSPACES;
 
-	ta->lines.first = ta->lines.last = NULL;
+	BLI_listbase_clear(&ta->lines);
 
 	tmp = (TextLine *) MEM_mallocN(sizeof(TextLine), "textline");
 	tmp->line = (char *) MEM_mallocN(1, "textline_string");
@@ -293,7 +293,7 @@ int BKE_text_reload(Text *text)
 	
 	BLI_freelistN(&text->lines);
 
-	text->lines.first = text->lines.last = NULL;
+	BLI_listbase_clear(&text->lines);
 	text->curl = text->sell = NULL;
 
 	/* clear undo buffer */
@@ -382,7 +382,7 @@ Text *BKE_text_load_ex(Main *bmain, const char *file, const char *relpath, const
 	ta = BKE_libblock_alloc(bmain, ID_TXT, BLI_path_basename(str));
 	ta->id.us = 1;
 
-	ta->lines.first = ta->lines.last = NULL;
+	BLI_listbase_clear(&ta->lines);
 	ta->curl = ta->sell = NULL;
 
 	if ((U.flag & USER_TXT_TABSTOSPACES_DISABLE) == 0)
@@ -488,7 +488,7 @@ Text *BKE_text_copy(Text *ta)
 
 	tan->flags = ta->flags | TXT_ISDIRTY;
 	
-	tan->lines.first = tan->lines.last = NULL;
+	BLI_listbase_clear(&tan->lines);
 	tan->curl = tan->sell = NULL;
 	
 	tan->nlines = ta->nlines;
@@ -1230,7 +1230,7 @@ void txt_order_cursors(Text *text, const bool reverse)
 	}
 }
 
-int txt_has_sel(Text *text)
+bool txt_has_sel(Text *text)
 {
 	return ((text->curl != text->sell) || (text->curc != text->selc));
 }
@@ -1540,7 +1540,7 @@ void txt_insert_buf(Text *text, const char *in_buffer)
 /* Undo functions */
 /******************/
 
-static int max_undo_test(Text *text, int x)
+static bool max_undo_test(Text *text, int x)
 {
 	while (text->undo_pos + x >= text->undo_len) {
 		if (text->undo_len * 2 > TXT_MAX_UNDO) {
@@ -3010,7 +3010,7 @@ int text_check_bracket(const char ch)
 }
 
 /* TODO, have a function for operators - http://docs.python.org/py3k/reference/lexical_analysis.html#operators */
-int text_check_delim(const char ch)
+bool text_check_delim(const char ch)
 {
 	int a;
 	char delims[] = "():\"\' ~!%^&*-+=[]{};/<>|.#\t,@";
@@ -3022,14 +3022,14 @@ int text_check_delim(const char ch)
 	return 0;
 }
 
-int text_check_digit(const char ch)
+bool text_check_digit(const char ch)
 {
 	if (ch < '0') return 0;
 	if (ch <= '9') return 1;
 	return 0;
 }
 
-int text_check_identifier(const char ch)
+bool text_check_identifier(const char ch)
 {
 	if (ch < '0') return 0;
 	if (ch <= '9') return 1;
@@ -3040,7 +3040,7 @@ int text_check_identifier(const char ch)
 	return 0;
 }
 
-int text_check_identifier_nodigit(const char ch)
+bool text_check_identifier_nodigit(const char ch)
 {
 	if (ch <= '9') return 0;
 	if (ch < 'A') return 0;
@@ -3051,18 +3051,18 @@ int text_check_identifier_nodigit(const char ch)
 }
 
 #ifndef WITH_PYTHON
-int text_check_identifier_unicode(const unsigned int ch)
+bool text_check_identifier_unicode(const unsigned int ch)
 {
 	return (ch < 255 && text_check_identifier((char)ch));
 }
 
-int text_check_identifier_nodigit_unicode(const unsigned int ch)
+bool text_check_identifier_nodigit_unicode(const unsigned int ch)
 {
 	return (ch < 255 && text_check_identifier_nodigit((char)ch));
 }
 #endif  /* WITH_PYTHON */
 
-int text_check_whitespace(const char ch)
+bool text_check_whitespace(const char ch)
 {
 	if (ch == ' ' || ch == '\t' || ch == '\r' || ch == '\n')
 		return 1;

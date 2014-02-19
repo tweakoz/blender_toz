@@ -146,7 +146,7 @@ void wm_event_init_from_window(wmWindow *win, wmEvent *event)
 
 /* ********************* notifiers, listeners *************** */
 
-static int wm_test_duplicate_notifier(wmWindowManager *wm, unsigned int type, void *reference)
+static bool wm_test_duplicate_notifier(wmWindowManager *wm, unsigned int type, void *reference)
 {
 	wmNotifier *note;
 
@@ -249,7 +249,7 @@ void wm_event_do_notifiers(bContext *C)
 	
 	/* cache & catch WM level notifiers, such as frame change, scene/screen set */
 	for (win = wm->windows.first; win; win = win->next) {
-		int do_anim = FALSE;
+		bool do_anim = false;
 		
 		CTX_wm_window_set(C, win);
 		
@@ -538,6 +538,21 @@ void WM_event_print(const wmEvent *event)
 		       event->x, event->y, event->ascii,
 		       BLI_str_utf8_size(event->utf8_buf), event->utf8_buf,
 		       event->keymap_idname, (void *)event);
+
+		if (ISNDOF(event->type)) {
+			const wmNDOFMotionData *ndof = (wmNDOFMotionData *) event->customdata;
+			if (event->type == NDOF_MOTION) {
+				printf("   ndof: rot: (%.4f %.4f %.4f),\n"
+				       "          tx: (%.4f %.4f %.4f),\n"
+				       "          dt: %.4f, progress: %d\n",
+				       UNPACK3(ndof->rvec),
+				       UNPACK3(ndof->tvec),
+				       ndof->dt, ndof->progress);
+			}
+			else {
+				/* ndof buttons printed already */
+			}
+		}
 	}
 	else {
 		printf("wmEvent - NULL\n");
@@ -777,7 +792,7 @@ int WM_operator_repeat(bContext *C, wmOperator *op)
  * simple check for now but may become more involved.
  * To be sure the operator can run call WM_operator_poll(C, op->type) also, since this call
  * checks if WM_operator_repeat() can run at all, not that it WILL run at any time. */
-int WM_operator_repeat_check(const bContext *UNUSED(C), wmOperator *op)
+bool WM_operator_repeat_check(const bContext *UNUSED(C), wmOperator *op)
 {
 	if (op->type->exec != NULL) {
 		return true;
@@ -2114,7 +2129,9 @@ static void wm_paintcursor_test(bContext *C, wmEvent *event)
 
 static void wm_event_drag_test(wmWindowManager *wm, wmWindow *win, wmEvent *event)
 {
-	if (wm->drags.first == NULL) return;
+	if (BLI_listbase_is_empty(&wm->drags)) {
+		return;
+	}
 	
 	if (event->type == MOUSEMOVE)
 		win->screen->do_draw_drag = TRUE;
@@ -2838,33 +2855,20 @@ static void attach_ndof_data(wmEvent *event, const GHOST_TEventNDOFMotionData *g
 {
 	wmNDOFMotionData *data = MEM_mallocN(sizeof(wmNDOFMotionData), "customdata NDOF");
 
-	const float s = U.ndof_sensitivity;
+	const float ts = U.ndof_sensitivity;
 	const float rs = U.ndof_orbit_sensitivity;
 
-	data->tx = s * ghost->tx;
+	mul_v3_v3fl(data->tvec, &ghost->tx, ts);
+	mul_v3_v3fl(data->rvec, &ghost->rx, rs);
 
-	data->rx = rs * ghost->rx;
-	data->ry = rs * ghost->ry;
-	data->rz = rs * ghost->rz;
-
-	if (U.ndof_flag & NDOF_ZOOM_UPDOWN) {
-		/* rotate so Y is where Z was */
-		data->ty = s * ghost->tz;
-		data->tz = s * ghost->ty;
-		/* maintain handed-ness? or just do what feels right? */
-
-		/* should this affect rotation also?
-		 * initial guess is 'yes', but get user feedback immediately!
-		 */
-#if 0
-		/* after turning this on, my guess becomes 'no' */
-		data->ry = s * ghost->rz;
-		data->rz = s * ghost->ry;
-#endif
-	}
-	else {
-		data->ty = s * ghost->ty;
-		data->tz = s * ghost->tz;
+	/**
+	 * \note
+	 * - optionally swap Y/Z.
+	 * - maintain handed-ness? or just do what feels right? not for now.
+	 * - after testing seems best not to apply this to rotation.
+	 */
+	if (U.ndof_flag & NDOF_PAN_YZ_SWAP_AXIS) {
+		SWAP(float, data->tvec[1], data->tvec[2]);
 	}
 
 	data->dt = ghost->dt;
@@ -3318,3 +3322,49 @@ void WM_set_locked_interface(wmWindowManager *wm, bool lock)
 	 */
 	BKE_spacedata_draw_locks(lock);
 }
+
+
+/* -------------------------------------------------------------------- */
+/* NDOF */
+
+/** \name NDOF Utility Functions
+ * \{ */
+
+
+void WM_event_ndof_pan_get(const wmNDOFMotionData *ndof, float r_pan[3], const bool use_zoom)
+{
+	int z_flag = use_zoom ? NDOF_ZOOM_INVERT : NDOF_PANZ_INVERT_AXIS;
+	r_pan[0] = ndof->tvec[0] * ((U.ndof_flag & NDOF_PANX_INVERT_AXIS) ? -1.0f : 1.0f);
+	r_pan[1] = ndof->tvec[1] * ((U.ndof_flag & NDOF_PANY_INVERT_AXIS) ? -1.0f : 1.0f);
+	r_pan[2] = ndof->tvec[2] * ((U.ndof_flag & z_flag)                ? -1.0f : 1.0f);
+}
+
+void WM_event_ndof_rotate_get(const wmNDOFMotionData *ndof, float r_rot[3])
+{
+	r_rot[0] = ndof->rvec[0] * ((U.ndof_flag & NDOF_ROTX_INVERT_AXIS) ? -1.0f : 1.0f);
+	r_rot[1] = ndof->rvec[1] * ((U.ndof_flag & NDOF_ROTY_INVERT_AXIS) ? -1.0f : 1.0f);
+	r_rot[2] = ndof->rvec[2] * ((U.ndof_flag & NDOF_ROTZ_INVERT_AXIS) ? -1.0f : 1.0f);
+}
+
+float WM_event_ndof_to_axis_angle(const struct wmNDOFMotionData *ndof, float axis[3])
+{
+	float angle;
+	angle = normalize_v3_v3(axis, ndof->rvec);
+
+	axis[0] = axis[0] * ((U.ndof_flag & NDOF_ROTX_INVERT_AXIS) ? -1.0f : 1.0f);
+	axis[1] = axis[1] * ((U.ndof_flag & NDOF_ROTY_INVERT_AXIS) ? -1.0f : 1.0f);
+	axis[2] = axis[2] * ((U.ndof_flag & NDOF_ROTZ_INVERT_AXIS) ? -1.0f : 1.0f);
+
+	return ndof->dt * angle;
+}
+
+void WM_event_ndof_to_quat(const struct wmNDOFMotionData *ndof, float q[4])
+{
+	float axis[3];
+	float angle;
+
+	angle = WM_event_ndof_to_axis_angle(ndof, axis);
+	axis_angle_to_quat(q, axis, angle);
+}
+
+/** \} */

@@ -324,7 +324,7 @@ static int build_hull(SkinOutput *so, Frame **frames, int totframe)
 
 	BMO_op_finish(bm, &op);
 
-	BM_mesh_delete_hflag_context(bm, BM_ELEM_TAG, DEL_ONLYTAGGED);
+	BM_mesh_delete_hflag_tagged(bm, BM_ELEM_TAG, BM_EDGE | BM_FACE);
 
 	return TRUE;
 }
@@ -774,7 +774,11 @@ static int calc_edge_subdivisions(const MVert *mvert, const MVertSkin *nodes,
 
 	avg[0] = half_v2(evs[0]->radius);
 	avg[1] = half_v2(evs[1]->radius);
-	num_subdivisions = (int)((float)edge_len / (avg[0] + avg[1]));
+
+	if (avg[0] + avg[1] == 0.0f)
+		num_subdivisions = 0;
+	else
+		num_subdivisions = (int)((float)edge_len / (avg[0] + avg[1]));
 
 	/* If both ends are branch nodes, two intermediate nodes are
 	 * required */
@@ -1426,7 +1430,7 @@ static void hull_merge_triangles(SkinOutput *so, const SkinModifierData *smd)
 
 	BLI_heap_free(heap, NULL);
 
-	BM_mesh_delete_hflag_context(so->bm, BM_ELEM_TAG, DEL_ONLYTAGGED);
+	BM_mesh_delete_hflag_tagged(so->bm, BM_ELEM_TAG, BM_EDGE | BM_FACE);
 
 }
 

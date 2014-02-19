@@ -337,7 +337,7 @@ static void make_duplis_frames(const DupliContext *ctx)
 	/* if we don't have any data/settings which will lead to object movement,
 	 * don't waste time trying, as it will all look the same...
 	 */
-	if (ob->parent == NULL && ob->constraints.first == NULL && ob->adt == NULL)
+	if (ob->parent == NULL && BLI_listbase_is_empty(&ob->constraints) && ob->adt == NULL)
 		return;
 
 	/* make a copy of the object's original data (before any dupli-data overwrites it)
@@ -780,7 +780,7 @@ static void make_duplis_faces(const DupliContext *ctx)
 	bool for_render = ctx->eval_ctx->for_render;
 	FaceDupliData fdd;
 
-	fdd.use_scale = parent->transflag & OB_DUPLIFACES_SCALE;
+	fdd.use_scale = ((parent->transflag & OB_DUPLIFACES_SCALE) != 0);
 
 	/* gather mesh info */
 	{
@@ -838,7 +838,7 @@ static void make_duplis_particle_system(const DupliContext *ctx, ParticleSystem 
 	float (*obmat)[4];
 	int a, b, hair = 0;
 	int totpart, totchild, totgroup = 0 /*, pa_num */;
-	int dupli_type_hack = !BKE_scene_use_new_shading_nodes(scene);
+	const bool dupli_type_hack = !BKE_scene_use_new_shading_nodes(scene);
 
 	int no_draw_flag = PARS_UNEXIST;
 
@@ -877,7 +877,7 @@ static void make_duplis_particle_system(const DupliContext *ctx, ParticleSystem 
 				return;
 		}
 		else { /*PART_DRAW_GR */
-			if (part->dup_group == NULL || part->dup_group->gobject.first == NULL)
+			if (part->dup_group == NULL || BLI_listbase_is_empty(&part->dup_group->gobject))
 				return;
 
 			if (BLI_findptr(&part->dup_group->gobject, par, offsetof(GroupObject, ob))) {

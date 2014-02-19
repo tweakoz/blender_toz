@@ -554,7 +554,7 @@ void            BKE_node_preview_clear_tree(struct bNodeTree *ntree);
 void            BKE_node_preview_sync_tree(struct bNodeTree *to_ntree, struct bNodeTree *from_ntree);
 void            BKE_node_preview_merge_tree(struct bNodeTree *to_ntree, struct bNodeTree *from_ntree, bool remove_old);
 
-void            BKE_node_preview_set_pixel(struct bNodePreview *preview, const float col[4], int x, int y, int do_manage);
+void            BKE_node_preview_set_pixel(struct bNodePreview *preview, const float col[4], int x, int y, bool do_manage);
 
 
 /* ************** NODE TYPE ACCESS *************** */
@@ -770,7 +770,7 @@ void            ntreeShaderGetTexcoMode(struct bNodeTree *ntree, int osa, short 
 extern void (*node_shader_lamp_loop)(struct ShadeInput *, struct ShadeResult *);
 void            set_node_shader_lamp_loop(void (*lamp_loop_func)(struct ShadeInput *, struct ShadeResult *));
 
-void            ntreeGPUMaterialNodes(struct bNodeTree *ntree, struct GPUMaterial *mat);
+void            ntreeGPUMaterialNodes(struct bNodeTree *ntree, struct GPUMaterial *mat, short compatibility);
 
 
 /* ************** COMPOSITE NODES *************** */
@@ -931,7 +931,7 @@ void            ntreeGPUMaterialNodes(struct bNodeTree *ntree, struct GPUMateria
 
 /* API */
 struct CompBuf;
-void ntreeCompositExecTree(struct bNodeTree *ntree, struct RenderData *rd, int rendering, int do_previews,
+void ntreeCompositExecTree(struct Scene *scene, struct bNodeTree *ntree, struct RenderData *rd, int rendering, int do_previews,
                            const struct ColorManagedViewSettings *view_settings, const struct ColorManagedDisplaySettings *display_settings);
 void ntreeCompositTagRender(struct Scene *sce);
 int ntreeCompositTagAnimated(struct bNodeTree *ntree);
@@ -998,7 +998,5 @@ int ntreeTexExecTree(struct bNodeTree *ntree, struct TexResult *target,
 
 void init_nodesystem(void);
 void free_nodesystem(void);
-
-void clear_scene_in_nodes(struct Main *bmain, struct Scene *sce);
 
 #endif

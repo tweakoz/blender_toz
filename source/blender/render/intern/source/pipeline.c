@@ -1940,7 +1940,7 @@ static void do_merge_fullsample(Render *re, bNodeTree *ntree)
 			ntreeCompositTagRender(re->scene);
 			ntreeCompositTagAnimated(ntree);
 			
-			ntreeCompositExecTree(ntree, &re->r, TRUE, G.background == 0, &re->scene->view_settings, &re->scene->display_settings);
+			ntreeCompositExecTree(re->scene, ntree, &re->r, TRUE, G.background == 0, &re->scene->view_settings, &re->scene->display_settings);
 		}
 		
 		/* ensure we get either composited result or the active layer */
@@ -2136,7 +2136,7 @@ static void do_render_composite_fields_blur_3d(Render *re)
 				if (re->r.scemode & R_FULL_SAMPLE)
 					do_merge_fullsample(re, ntree);
 				else {
-					ntreeCompositExecTree(ntree, &re->r, TRUE, G.background == 0, &re->scene->view_settings, &re->scene->display_settings);
+					ntreeCompositExecTree(re->scene, ntree, &re->r, TRUE, G.background == 0, &re->scene->view_settings, &re->scene->display_settings);
 				}
 				
 				ntree->stats_draw = NULL;
@@ -2391,7 +2391,7 @@ static int check_composite_output(Scene *scene)
 	return node_tree_has_composite_output(scene->nodetree);
 }
 
-int RE_is_rendering_allowed(Scene *scene, Object *camera_override, ReportList *reports)
+bool RE_is_rendering_allowed(Scene *scene, Object *camera_override, ReportList *reports)
 {
 	SceneRenderLayer *srl;
 	int scemode = check_mode_full_sample(&scene->r);
@@ -2659,7 +2659,7 @@ static int do_write_image_or_movie(Render *re, Main *bmain, Scene *scene, bMovie
 
 	/* write movie or image */
 	if (BKE_imtype_is_movie(scene->r.im_format.imtype)) {
-		int do_free = FALSE;
+		bool do_free = false;
 		ImBuf *ibuf = render_result_rect_to_ibuf(&rres, &scene->r);
 
 		/* note; the way it gets 32 bits rects is weak... */

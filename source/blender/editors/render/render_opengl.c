@@ -90,8 +90,6 @@ typedef struct OGLRender {
 	ScrArea *prevsa;
 	ARegion *prevar;
 
-	short obcenter_dia_back; /* temp overwrite */
-
 	bool is_sequencer;
 	SpaceSeq *sseq;
 
@@ -196,7 +194,7 @@ static void screen_opengl_render_apply(OGLRender *oglrender)
 			rctf viewplane;
 			float clipsta, clipend;
 
-			int is_ortho = ED_view3d_viewplane_get(v3d, rv3d, sizex, sizey, &viewplane, &clipsta, &clipend, NULL);
+			bool is_ortho = ED_view3d_viewplane_get(v3d, rv3d, sizex, sizey, &viewplane, &clipsta, &clipend, NULL);
 			if (is_ortho) orthographic_m4(winmat, viewplane.xmin, viewplane.xmax, viewplane.ymin, viewplane.ymax, -clipend, clipend);
 			else perspective_m4(winmat, viewplane.xmin, viewplane.xmax, viewplane.ymin, viewplane.ymax, clipsta, clipend);
 		}
@@ -402,9 +400,6 @@ static bool screen_opengl_render_init(bContext *C, wmOperator *op)
 	}
 
 
-	oglrender->obcenter_dia_back = U.obcenter_dia;
-	U.obcenter_dia = 0;
-
 	oglrender->prevsa = prevsa;
 	oglrender->prevar = prevar;
 
@@ -468,8 +463,6 @@ static void screen_opengl_render_end(bContext *C, OGLRender *oglrender)
 
 	WM_event_add_notifier(C, NC_SCENE | ND_RENDER_RESULT, oglrender->scene);
 
-	U.obcenter_dia = oglrender->obcenter_dia_back;
-
 	GPU_offscreen_free(oglrender->ofs);
 
 	oglrender->scene->customdata_mask_modal = 0;
@@ -521,7 +514,7 @@ static bool screen_opengl_render_anim_step(bContext *C, wmOperator *op)
 	int ok = 0;
 	const short view_context = (oglrender->v3d != NULL);
 	Object *camera = NULL;
-	int is_movie;
+	bool is_movie;
 
 	/* go to next frame */
 	if (CFRA < oglrender->nfra)
@@ -665,7 +658,7 @@ finally:  /* Step the frame and bail early if needed */
 static int screen_opengl_render_modal(bContext *C, wmOperator *op, const wmEvent *event)
 {
 	OGLRender *oglrender = op->customdata;
-	int anim = RNA_boolean_get(op->ptr, "animation");
+	const bool anim = RNA_boolean_get(op->ptr, "animation");
 	bool ret;
 
 	switch (event->type) {
@@ -706,7 +699,7 @@ static int screen_opengl_render_modal(bContext *C, wmOperator *op, const wmEvent
 static int screen_opengl_render_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 {
 	OGLRender *oglrender;
-	int anim = RNA_boolean_get(op->ptr, "animation");
+	const bool anim = RNA_boolean_get(op->ptr, "animation");
 
 	if (!screen_opengl_render_init(C, op))
 		return OPERATOR_CANCELLED;
@@ -731,7 +724,7 @@ static int screen_opengl_render_invoke(bContext *C, wmOperator *op, const wmEven
 /* executes blocking render */
 static int screen_opengl_render_exec(bContext *C, wmOperator *op)
 {
-	const short is_animation = RNA_boolean_get(op->ptr, "animation");
+	const bool is_animation = RNA_boolean_get(op->ptr, "animation");
 
 	if (!screen_opengl_render_init(C, op))
 		return OPERATOR_CANCELLED;
