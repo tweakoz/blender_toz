@@ -1857,7 +1857,12 @@ static int viewmove_invoke(bContext *C, wmOperator *op, const wmEvent *event)
 
 	if (event->type == MOUSEPAN) {
 		/* invert it, trackpad scroll follows same principle as 2d windows this way */
-		viewmove_apply(vod, 2 * event->x - event->prevx, 2 * event->y - event->prevy);
+
+ 		if (U.uiflag2 & USER_TRACKPAD_NATURAL)
+ 		    viewmove_apply(vod, 2 * event->x - event->prevx, 2 * event->y - event->prevy);
+ 		else
+ 		    viewmove_apply(vod, event->prevx, event->prevy);
+
 		ED_view3d_depth_tag_update(vod->rv3d);
 		
 		viewops_data_free(C, op);
